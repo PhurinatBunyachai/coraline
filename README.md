@@ -2,6 +2,14 @@
 
 Full-stack app: Express backend + Next.js frontend, reverse-proxied by Caddy.
 
+**Live Demo**: [https://coraline-49iw.vercel.app/](https://coraline-49iw.vercel.app/)
+
+## Demo — Event Broadcast
+
+<video src="demo/event-broadcast.mov" controls width="600"></video>
+
+[Download video](demo/event-broadcast.mov)
+
 ## Stack
 
 - `backend/` — Express + TypeScript (port 3001)
