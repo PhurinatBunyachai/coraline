@@ -5,7 +5,7 @@ Full-stack app: Express backend + Next.js frontend, reverse-proxied by Caddy.
 ## Stack
 
 - `backend/` — Express + TypeScript (port 3001)
-- `frontend/` — Next.js + React (port 3000)
+- `frontend/` — Next.js + TypeScript (port 3000)
 - `Caddyfile` / `docker-compose.yml` — reverse proxy, routes `/api/*` to backend, everything else to frontend (port 80)
 
 ## Run with Docker (recommended)

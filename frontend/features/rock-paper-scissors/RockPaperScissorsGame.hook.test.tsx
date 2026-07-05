@@ -1,23 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useRockPaperScissorsGame } from './RockPaperScissorsGame.hook';
-import { readNumericCookie, writeCookie } from '../../lib/cookies';
 import { fetchBotAction } from './lib/botApi';
-import { COOKIE_KEYS } from './constants/cookieKeys';
+import { fetchScore, postOutcome } from './lib/scoreApi';
 import type { Action } from './types/action.types';
 
-vi.mock('../../lib/cookies');
 vi.mock('./lib/botApi');
+vi.mock('./lib/scoreApi');
 
-const mockedReadNumericCookie = vi.mocked(readNumericCookie);
-const mockedWriteCookie = vi.mocked(writeCookie);
 const mockedFetchBotAction = vi.mocked(fetchBotAction);
-
-function setInitialScores(yourScore: number, highScore: number) {
-  mockedReadNumericCookie.mockImplementation((key) =>
-    key === COOKIE_KEYS.YOUR_SCORE ? yourScore : highScore
-  );
-}
+const mockedFetchScore = vi.mocked(fetchScore);
+const mockedPostOutcome = vi.mocked(postOutcome);
 
 // Flushes the microtask queue so a pending fetchBotAction() promise resolves
 // before we advance the reveal-delay timer that its `.then` callback schedules.
@@ -35,7 +28,7 @@ async function advanceRevealDelay() {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  setInitialScores(0, 0);
+  mockedFetchScore.mockResolvedValue({ yourScore: 0, highScore: 0 });
 });
 
 afterEach(() => {
@@ -43,15 +36,16 @@ afterEach(() => {
   vi.restoreAllMocks();
   // restoreAllMocks only restores vi.spyOn mocks; factory-less vi.mock()
   // module mocks keep their call history unless reset explicitly.
-  mockedReadNumericCookie.mockReset();
-  mockedWriteCookie.mockReset();
   mockedFetchBotAction.mockReset();
+  mockedFetchScore.mockReset();
+  mockedPostOutcome.mockReset();
 });
 
 describe('useRockPaperScissorsGame', () => {
-  it('loads initial scores from cookies', () => {
-    setInitialScores(3, 10);
+  it('loads initial scores from the backend', async () => {
+    mockedFetchScore.mockResolvedValue({ yourScore: 3, highScore: 10 });
     const { result } = renderHook(() => useRockPaperScissorsGame());
+    await flushMicrotasks();
 
     expect(result.current.yourScore).toBe(3);
     expect(result.current.highScore).toBe(10);
@@ -69,9 +63,9 @@ describe('useRockPaperScissorsGame', () => {
     expect(mockedFetchBotAction).toHaveBeenCalledTimes(1);
   });
 
-  it('on WIN, reveals the bot action, increments score, persists it, and bumps high score when exceeded', async () => {
-    setInitialScores(2, 2);
+  it('on WIN, reveals the bot action and applies the score returned by the backend', async () => {
     mockedFetchBotAction.mockResolvedValue('SCISSORS'); // player ROCK beats bot SCISSORS
+    mockedPostOutcome.mockResolvedValue({ yourScore: 3, highScore: 3 });
     const { result } = renderHook(() => useRockPaperScissorsGame());
 
     act(() => {
@@ -84,33 +78,16 @@ describe('useRockPaperScissorsGame', () => {
 
     await advanceRevealDelay();
 
+    expect(mockedPostOutcome).toHaveBeenCalledWith('WIN');
     expect(result.current.yourScore).toBe(3);
     expect(result.current.highScore).toBe(3);
     expect(result.current.botAction).toBeNull();
     expect(result.current.isLocked).toBe(false);
-    expect(mockedWriteCookie).toHaveBeenCalledWith(COOKIE_KEYS.YOUR_SCORE, '3');
-    expect(mockedWriteCookie).toHaveBeenCalledWith(COOKIE_KEYS.HIGH_SCORE, '3');
   });
 
-  it('on WIN, does not bump high score when not exceeded', async () => {
-    setInitialScores(5, 10);
-    mockedFetchBotAction.mockResolvedValue('SCISSORS');
-    const { result } = renderHook(() => useRockPaperScissorsGame());
-
-    act(() => {
-      result.current.handleSelectAction('ROCK');
-    });
-    await flushMicrotasks();
-    await advanceRevealDelay();
-
-    expect(result.current.yourScore).toBe(6);
-    expect(result.current.highScore).toBe(10);
-    expect(mockedWriteCookie).not.toHaveBeenCalledWith(COOKIE_KEYS.HIGH_SCORE, expect.anything());
-  });
-
-  it('on LOSE, resets score to 0 and persists it', async () => {
-    setInitialScores(4, 10);
+  it('on LOSE, applies the reset score returned by the backend', async () => {
     mockedFetchBotAction.mockResolvedValue('PAPER'); // player ROCK loses to bot PAPER
+    mockedPostOutcome.mockResolvedValue({ yourScore: 0, highScore: 10 });
     const { result } = renderHook(() => useRockPaperScissorsGame());
 
     act(() => {
@@ -119,14 +96,14 @@ describe('useRockPaperScissorsGame', () => {
     await flushMicrotasks();
     await advanceRevealDelay();
 
+    expect(mockedPostOutcome).toHaveBeenCalledWith('LOSE');
     expect(result.current.yourScore).toBe(0);
-    expect(mockedWriteCookie).toHaveBeenCalledWith(COOKIE_KEYS.YOUR_SCORE, '0');
-    expect(mockedWriteCookie).not.toHaveBeenCalledWith(COOKIE_KEYS.HIGH_SCORE, expect.anything());
+    expect(result.current.highScore).toBe(10);
   });
 
-  it('on DRAW, leaves the score untouched and writes nothing', async () => {
-    setInitialScores(4, 10);
+  it('on DRAW, sends the outcome and applies the unchanged score returned by the backend', async () => {
     mockedFetchBotAction.mockResolvedValue('ROCK'); // player ROCK vs bot ROCK
+    mockedPostOutcome.mockResolvedValue({ yourScore: 4, highScore: 10 });
     const { result } = renderHook(() => useRockPaperScissorsGame());
 
     act(() => {
@@ -135,8 +112,8 @@ describe('useRockPaperScissorsGame', () => {
     await flushMicrotasks();
     await advanceRevealDelay();
 
+    expect(mockedPostOutcome).toHaveBeenCalledWith('DRAW');
     expect(result.current.yourScore).toBe(4);
-    expect(mockedWriteCookie).not.toHaveBeenCalled();
   });
 
   it('unlocks cleanly without throwing when fetchBotAction rejects', async () => {
@@ -152,7 +129,24 @@ describe('useRockPaperScissorsGame', () => {
     expect(result.current.isLocked).toBe(false);
     expect(result.current.botAction).toBeNull();
     expect(consoleErrorSpy).toHaveBeenCalled();
-    expect(mockedWriteCookie).not.toHaveBeenCalled();
+    expect(mockedPostOutcome).not.toHaveBeenCalled();
+  });
+
+  it('unlocks cleanly without throwing when postOutcome rejects', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockedFetchBotAction.mockResolvedValue('SCISSORS');
+    mockedPostOutcome.mockRejectedValue(new Error('network fail'));
+    const { result } = renderHook(() => useRockPaperScissorsGame());
+
+    act(() => {
+      result.current.handleSelectAction('ROCK');
+    });
+    await flushMicrotasks();
+    await advanceRevealDelay();
+
+    expect(result.current.isLocked).toBe(false);
+    expect(result.current.botAction).toBeNull();
+    expect(consoleErrorSpy).toHaveBeenCalled();
   });
 
   it('clears the pending reveal timeout on unmount', async () => {
@@ -167,6 +161,6 @@ describe('useRockPaperScissorsGame', () => {
     unmount();
     await advanceRevealDelay();
 
-    expect(mockedWriteCookie).not.toHaveBeenCalled();
+    expect(mockedPostOutcome).not.toHaveBeenCalled();
   });
 });
