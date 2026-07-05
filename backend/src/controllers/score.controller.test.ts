@@ -3,9 +3,11 @@ import type { Request, Response } from 'express';
 import { getScoreHandler, postOutcomeHandler } from './score.controller';
 import { applyOutcome, getScore } from '../services/score.service';
 import { resolveSessionId } from '../services/session.service';
+import { broadcastScore } from '../services/sse.service';
 
 vi.mock('../services/score.service');
 vi.mock('../services/session.service');
+vi.mock('../services/sse.service');
 
 function mockResponse() {
   return {
@@ -33,6 +35,7 @@ describe('getScoreHandler', () => {
 describe('postOutcomeHandler', () => {
   beforeEach(() => {
     vi.mocked(applyOutcome).mockClear();
+    vi.mocked(broadcastScore).mockClear();
     vi.mocked(resolveSessionId).mockReturnValue('session-1');
     vi.mocked(applyOutcome).mockReturnValue({ yourScore: 1, highScore: 1 });
   });
@@ -48,6 +51,15 @@ describe('postOutcomeHandler', () => {
     expect(res.json).toHaveBeenCalledWith({ yourScore: 1, highScore: 1 });
   });
 
+  it('broadcasts the updated score to the session', () => {
+    const res = mockResponse();
+    const req = { body: { outcome: 'WIN' } } as Request;
+
+    postOutcomeHandler(req, res);
+
+    expect(broadcastScore).toHaveBeenCalledWith('session-1', { yourScore: 1, highScore: 1 });
+  });
+
   it('rejects an invalid outcome with 400', () => {
     const res = mockResponse();
     const req = { body: { outcome: 'INVALID' } } as unknown as Request;
@@ -55,6 +67,7 @@ describe('postOutcomeHandler', () => {
     postOutcomeHandler(req, res);
 
     expect(applyOutcome).not.toHaveBeenCalled();
+    expect(broadcastScore).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({ error: 'Invalid outcome' });
   });

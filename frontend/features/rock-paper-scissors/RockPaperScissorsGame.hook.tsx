@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { resolveOutcome } from './constants/rules';
 import { fetchBotAction } from './lib/botApi';
-import { fetchScore, postOutcome } from './lib/scoreApi';
+import { fetchScore, postOutcome, subscribeToScoreStream } from './lib/scoreApi';
 import type { Action } from './types/action.types';
 
 const REVEAL_DELAY_MS = 2000;
@@ -29,6 +29,13 @@ export function useRockPaperScissorsGame() {
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
+  }, []);
+
+  useEffect(() => {
+    return subscribeToScoreStream(({ yourScore: nextScore, highScore: nextHighScore }) => {
+      setYourScore(nextScore);
+      setHighScore(nextHighScore);
+    });
   }, []);
 
   function handleSelectAction(playerAction: Action) {

@@ -29,3 +29,12 @@ export async function postOutcome(outcome: GameOutcome): Promise<ScoreResponse> 
 
   return response.json();
 }
+
+export function subscribeToScoreStream(onScore: (score: ScoreResponse) => void): () => void {
+  const source = new EventSource(`${API_BASE_URL}/api/game/score/stream`, { withCredentials: true });
+  source.onmessage = (event) => {
+    onScore(JSON.parse(event.data));
+  };
+
+  return () => source.close();
+}
