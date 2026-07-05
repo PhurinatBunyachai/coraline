@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ActionButtons } from './ActionButtons';
+import '@testing-library/jest-dom';
 
 describe('ActionButtons', () => {
   it('renders a labeled button for each action', () => {
