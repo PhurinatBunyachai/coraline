@@ -6,9 +6,7 @@ Full-stack app: Express backend + Next.js frontend, reverse-proxied by Caddy.
 
 ## Demo — Event Broadcast
 
-<video src="demo/event-broadcast.mov" controls width="600"></video>
-
-[Download video](demo/event-broadcast.mov)
+https://github.com/user-attachments/assets/4472123e-f157-41ba-ba33-700d649c6269
 
 ## Stack
 
