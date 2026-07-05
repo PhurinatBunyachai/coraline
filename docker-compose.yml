@@ -1,0 +1,28 @@
+services:
+  frontend:
+    # No NEXT_PUBLIC_API_BASE_URL here: Next.js inlines NEXT_PUBLIC_* vars at
+    # `next build` time (inside the image build), not at container start, so
+    # a runtime `environment:` entry here would have no effect. Leaving it
+    # unset makes the app's own fallback (empty string -> relative /api/*
+    # calls through Caddy) the value baked into the build.
+    build: ./frontend
+    expose:
+      - "3000"
+
+  backend:
+    build: ./backend
+    environment:
+      - PORT=3001
+      - CORS_ORIGIN=http://localhost
+    expose:
+      - "3001"
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    depends_on:
+      - frontend
+      - backend
